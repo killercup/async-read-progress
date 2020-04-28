@@ -1,0 +1,16 @@
+[package]
+name = "async-read-progress"
+version = "0.1.0"
+authors = ["Pascal Hertleif <pascal@technocreatives.com>"]
+edition = "2018"
+
+[dependencies]
+futures = "0.3.4"
+pin-utils = "0.1.0"
+
+tokio = { version = "0.2", features = ["stream", "io-util"], optional = true }
+bytes = { version = "0.5.4", optional = true }
+
+[features]
+default = ["with-tokio"]
+with-tokio = ["tokio", "bytes"]
