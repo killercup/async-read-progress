@@ -27,7 +27,11 @@
 //! # });
 //! # }
 //! ```
-use std::fmt;
+use core::pin::Pin;
+use std::{
+    fmt,
+    time::{Duration, Instant},
+};
 
 pub use for_futures::FReportReadProgress as AsyncReadProgressExt;
 
@@ -39,17 +43,34 @@ pub use for_tokio::TReportReadProgress as TokioAsyncReadProgressExt;
 pub struct LogStreamProgress<St, F> {
     inner: St,
     callback: F,
+    state: State,
+}
+
+struct State {
     bytes_read: usize,
     // TODO: Actually use this
-    at_most_ever: std::time::Duration,
+    at_most_ever: Duration,
+    last_call_at: Instant,
 }
 
 // TODO: Remove this comment after someone who knows how this actually works has
 // reviewed/fixed this.
-impl<St, F> LogStreamProgress<St, F> {
+impl<St, F: FnMut(usize)> LogStreamProgress<St, F> {
     pin_utils::unsafe_pinned!(inner: St);
     pin_utils::unsafe_unpinned!(callback: F);
-    pin_utils::unsafe_unpinned!(bytes_read: usize);
+    pin_utils::unsafe_unpinned!(state: State);
+
+    fn update(mut self: Pin<&mut Self>, bytes_read: usize) {
+        let mut state = self.as_mut().state();
+        state.bytes_read += bytes_read;
+        let read = state.bytes_read;
+
+        if state.last_call_at.elapsed() >= state.at_most_ever {
+            (self.as_mut().callback())(read);
+
+            self.as_mut().state().last_call_at = Instant::now();
+        }
+    }
 }
 
 impl<T, U> Unpin for LogStreamProgress<T, U>
@@ -66,7 +87,8 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("LogStreamProgress")
             .field("stream", &self.inner)
-            .field("at_most_ever", &self.at_most_ever)
+            .field("at_most_ever", &self.state.at_most_ever)
+            .field("last_call_at", &self.state.last_call_at)
             .finish()
     }
 }
@@ -77,7 +99,10 @@ mod for_futures {
         task::{Context, Poll},
     };
     use futures_io::{AsyncRead as FAsyncRead, IoSliceMut};
-    use std::{io, time::Duration};
+    use std::{
+        io,
+        time::{Duration, Instant},
+    };
 
     /// An extension trait which adds the `report_progress` method to
     /// `AsyncRead` types.
@@ -93,11 +118,15 @@ mod for_futures {
             Self: Sized,
             F: FnMut(usize),
         {
+            let state = super::State {
+                bytes_read: 0,
+                at_most_ever,
+                last_call_at: Instant::now(),
+            };
             super::LogStreamProgress {
                 inner: self,
                 callback,
-                bytes_read: 0,
-                at_most_ever,
+                state,
             }
         }
     }
@@ -118,9 +147,7 @@ mod for_futures {
                 Poll::Pending => Poll::Pending,
                 Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
                 Poll::Ready(Ok(bytes_read)) => {
-                    *self.as_mut().bytes_read() += bytes_read;
-                    let read = self.as_ref().bytes_read;
-                    (self.as_mut().callback())(read);
+                    self.update(bytes_read);
                     Poll::Ready(Ok(bytes_read))
                 }
             }
@@ -135,9 +162,7 @@ mod for_futures {
                 Poll::Pending => Poll::Pending,
                 Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
                 Poll::Ready(Ok(bytes_read)) => {
-                    *self.as_mut().bytes_read() += bytes_read;
-                    let read = self.as_ref().bytes_read;
-                    (self.as_mut().callback())(read);
+                    self.update(bytes_read);
                     Poll::Ready(Ok(bytes_read))
                 }
             }
@@ -151,7 +176,10 @@ mod for_tokio {
         pin::Pin,
         task::{Context, Poll},
     };
-    use std::{io, time::Duration};
+    use std::{
+        io,
+        time::{Duration, Instant},
+    };
     use tokio::io::AsyncRead as TAsyncRead;
 
     /// An extension trait which adds the `report_progress` method to
@@ -168,11 +196,15 @@ mod for_tokio {
             Self: Sized,
             F: FnMut(usize),
         {
+            let state = super::State {
+                bytes_read: 0,
+                at_most_ever,
+                last_call_at: Instant::now(),
+            };
             super::LogStreamProgress {
                 inner: self,
                 callback,
-                bytes_read: 0,
-                at_most_ever,
+                state,
             }
         }
     }
@@ -193,9 +225,7 @@ mod for_tokio {
                 Poll::Pending => Poll::Pending,
                 Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
                 Poll::Ready(Ok(bytes_read)) => {
-                    *self.as_mut().bytes_read() += bytes_read;
-                    let read = self.as_ref().bytes_read;
-                    (self.as_mut().callback())(read);
+                    self.update(bytes_read);
                     Poll::Ready(Ok(bytes_read))
                 }
             }
