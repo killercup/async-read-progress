@@ -27,6 +27,7 @@
 //! # });
 //! # }
 //! ```
+use std::fmt;
 
 pub use for_futures::FReportReadProgress as AsyncReadProgressExt;
 
@@ -56,6 +57,18 @@ where
     T: Unpin,
     U: Unpin,
 {
+}
+
+impl<St, F> fmt::Debug for LogStreamProgress<St, F>
+where
+    St: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LogStreamProgress")
+            .field("stream", &self.inner)
+            .field("at_most_ever", &self.at_most_ever)
+            .finish()
+    }
 }
 
 mod for_futures {
