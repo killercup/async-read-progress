@@ -18,3 +18,4 @@ with-tokio = ["tokio", "bytes"]
 [dev-dependencies]
 futures-core = "0.3.4"
 futures = "0.3.4"
+tokio = { version = "0.2", features = ["stream", "io-util", "sync", "rt-threaded", "time", "macros"] }

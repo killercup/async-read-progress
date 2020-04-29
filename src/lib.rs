@@ -252,4 +252,125 @@ mod for_tokio {
             assert!(reader.read_to_end(&mut buf).await.is_ok());
         });
     }
+
+    #[tokio::test]
+    async fn does_delays_and_stuff() {
+        use bytes::Bytes;
+        use std::sync::{Arc, RwLock};
+        use tokio::{
+            io::{stream_reader, AsyncReadExt},
+            sync::mpsc,
+            time::delay_for,
+        };
+
+        let (mut data_writer, data_reader) = mpsc::channel(1);
+
+        tokio::spawn(async move {
+            for i in 0u8..10 {
+                dbg!(i);
+                data_writer
+                    .send(Ok(Bytes::from_static(&[1u8, 2, 3, 4])))
+                    .await
+                    .unwrap();
+                delay_for(Duration::from_millis(10)).await;
+            }
+            drop(data_writer);
+        });
+
+        let total_size = 4 * 10i32;
+        let reader = stream_reader(data_reader);
+        let mut buf = Vec::new();
+
+        let log = Arc::new(RwLock::new(Vec::new()));
+        let log_writer = log.clone();
+
+        let mut reader = reader.report_progress(
+            /* only call every */ Duration::from_millis(10),
+            |bytes_read| {
+                log_writer.write().unwrap().push(format!(
+                    "read {}/{}",
+                    dbg!(bytes_read),
+                    total_size
+                ));
+            },
+        );
+
+        assert!(reader.read_to_end(&mut buf).await.is_ok());
+        dbg!("read it");
+
+        let log = log.read().unwrap();
+        assert_eq!(
+            *log,
+            &[
+                "read 8/40".to_string(),
+                "read 12/40".to_string(),
+                "read 16/40".to_string(),
+                "read 20/40".to_string(),
+                "read 24/40".to_string(),
+                "read 28/40".to_string(),
+                "read 32/40".to_string(),
+                "read 36/40".to_string(),
+                "read 40/40".to_string(),
+                "read 40/40".to_string(),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn does_delays_and_stuff_real_good() {
+        use bytes::Bytes;
+        use std::sync::{Arc, RwLock};
+        use tokio::{
+            io::{stream_reader, AsyncReadExt},
+            sync::mpsc,
+            time::delay_for,
+        };
+
+        let (mut data_writer, data_reader) = mpsc::channel(1);
+
+        tokio::spawn(async move {
+            for i in 0u8..10 {
+                dbg!(i);
+                data_writer
+                    .send(Ok(Bytes::from_static(&[1u8, 2, 3, 4])))
+                    .await
+                    .unwrap();
+                delay_for(Duration::from_millis(5)).await;
+            }
+            drop(data_writer);
+        });
+
+        let total_size = 4 * 10i32;
+        let reader = stream_reader(data_reader);
+        let mut buf = Vec::new();
+
+        let log = Arc::new(RwLock::new(Vec::new()));
+        let log_writer = log.clone();
+
+        let mut reader = reader.report_progress(
+            /* only call every */ Duration::from_millis(10),
+            |bytes_read| {
+                log_writer.write().unwrap().push(format!(
+                    "read {}/{}",
+                    dbg!(bytes_read),
+                    total_size
+                ));
+            },
+        );
+
+        assert!(reader.read_to_end(&mut buf).await.is_ok());
+        dbg!("read it");
+
+        let log = log.read().unwrap();
+        assert_eq!(
+            *log,
+            &[
+                "read 12/40".to_string(),
+                "read 20/40".to_string(),
+                "read 28/40".to_string(),
+                "read 36/40".to_string(),
+                "read 40/40".to_string(),
+            ]
+        );
+    }
 }
