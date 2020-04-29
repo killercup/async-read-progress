@@ -2,7 +2,9 @@
 
 Context: Rust, async/await, async readers.
 
-WIP extension traits for inspecting `AsyncRead` progress.
+Extension traits for inspecting `AsyncRead` progress.
+
+Supports futures 0.3 and tokio 0.2.
 
 ## License
 

@@ -3,6 +3,9 @@ name = "async-read-progress"
 version = "0.1.0"
 authors = ["Pascal Hertleif <pascal@technocreatives.com>"]
 edition = "2018"
+license = "MIT OR Apache-2.0"
+description = "Extension traits for inspecting `AsyncRead` progress."
+readme = "README.md"
 
 [dependencies]
 futures-io = "0.3.4"
