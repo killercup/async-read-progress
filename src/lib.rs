@@ -1,40 +1,39 @@
-/// Report the progress of an async read operation
-///
-/// As promised [on Twitter](https://twitter.com/killercup/status/1254695847796842498).
-///
-/// # Examples
-///
-/// ```
-/// # fn main() {
-/// # tokio::runtime::Runtime::new().unwrap().block_on(async {
-/// # use futures::{
-/// #     io::AsyncReadExt,
-/// #     stream::{self, TryStreamExt},
-/// # };
-/// #
-/// # let src = vec![1u8, 2, 3, 4, 5];
-/// # let total_size = src.len();
-/// # let xs = stream::iter(vec![Ok(src)]);
-/// # let reader = xs.into_async_read();
-/// # let mut buf = Vec::new();
-/// #
-/// use async_read_progress::*;
-///
-/// let mut reader = reader.report_progress(
-///     /* only call every */ std::time::Duration::from_millis(20),
-///     |bytes_read| eprintln!("read {}/{}", bytes_read, total_size),
-/// );
-/// #
-/// # assert!(reader.read_to_end(&mut buf).await.is_ok());
-/// # });
-/// # }
-/// ```
+//! Report the progress of an async read operation
+//!
+//! As promised [on Twitter](https://twitter.com/killercup/status/1254695847796842498).
+//!
+//! # Examples
+//!
+//! ```
+//! # fn main() {
+//! # tokio::runtime::Runtime::new().unwrap().block_on(async {
+//! use futures::{
+//!     io::AsyncReadExt,
+//!     stream::{self, TryStreamExt},
+//! };
+//! use async_read_progress::*;
+//!
+//! let src = vec![1u8, 2, 3, 4, 5];
+//! let total_size = src.len();
+//! let reader = stream::iter(vec![Ok(src)]).into_async_read();
+//!
+//! let mut reader = reader.report_progress(
+//!     /* only call every */ std::time::Duration::from_millis(20),
+//!     |bytes_read| eprintln!("read {}/{}", bytes_read, total_size),
+//! );
+//! #
+//! # let mut buf = Vec::new();
+//! # assert!(reader.read_to_end(&mut buf).await.is_ok());
+//! # });
+//! # }
+//! ```
+
 pub use for_futures::FReportReadProgress as AsyncReadProgressExt;
 
 #[cfg(feature = "with-tokio")]
 pub use for_tokio::TReportReadProgress as TokioAsyncReadProgressExt;
 
-/// Stream for the [`log_progress`] method.
+/// Reader for the `report_progress` method.
 #[must_use = "streams do nothing unless polled"]
 pub struct LogStreamProgress<St, F> {
     inner: St,
@@ -64,10 +63,13 @@ mod for_futures {
         pin::Pin,
         task::{Context, Poll},
     };
-    use futures::io::{AsyncRead as FAsyncRead, IoSliceMut};
+    use futures_io::{AsyncRead as FAsyncRead, IoSliceMut};
     use std::{io, time::Duration};
 
-    // generics, generics everywhere
+    /// An extension trait which adds the `report_progress` method to
+    /// `AsyncRead` types.
+    ///
+    /// Note: This is for [`futures_io::AsyncRead`].
     pub trait FReportReadProgress {
         fn report_progress<F>(
             self,
@@ -139,6 +141,10 @@ mod for_tokio {
     use std::{io, time::Duration};
     use tokio::io::AsyncRead as TAsyncRead;
 
+    /// An extension trait which adds the `report_progress` method to
+    /// `AsyncRead` types.
+    ///
+    /// Note: This is for [`tokio::io::AsyncRead`].
     pub trait TReportReadProgress {
         fn report_progress<F>(
             self,

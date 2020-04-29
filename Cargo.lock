@@ -6,6 +6,8 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "futures",
+ "futures-core",
+ "futures-io",
  "pin-utils",
  "tokio",
 ]
