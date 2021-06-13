@@ -1,24 +1,26 @@
 [package]
-name = "async-read-progress"
-version = "0.1.0"
 authors = ["Pascal Hertleif <pascal@technocreatives.com>"]
+description = "Extension traits for inspecting `AsyncRead` progress."
 edition = "2018"
 license = "MIT OR Apache-2.0"
-description = "Extension traits for inspecting `AsyncRead` progress."
+name = "async-read-progress"
 readme = "README.md"
+version = "0.2.0"
 
 [dependencies]
 futures-io = "0.3.4"
 pin-utils = "0.1.0"
 
-tokio = { version = "0.2", features = ["stream", "io-util"], optional = true }
-bytes = { version = "0.5.4", optional = true }
+bytes = {version = "1.0", optional = true}
+tokio = {version = "1.6", features = ["io-util"], optional = true}
 
 [features]
 default = ["with-tokio"]
 with-tokio = ["tokio", "bytes"]
 
 [dev-dependencies]
-futures-core = "0.3.4"
 futures = "0.3.4"
-tokio = { version = "0.2", features = ["stream", "io-util", "sync", "rt-threaded", "time", "macros"] }
+futures-core = "0.3.4"
+tokio = {version = "1.6", features = ["rt-multi-thread", "macros", "time"]}
+tokio-stream = {version = "0.1.6"}
+tokio-util = {version = "0.6.7", features = ["io"]}

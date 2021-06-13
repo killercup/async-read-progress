@@ -219,28 +219,35 @@ mod for_tokio {
         fn poll_read(
             mut self: Pin<&mut Self>,
             cx: &mut Context<'_>,
-            buf: &mut [u8],
-        ) -> Poll<io::Result<usize>> {
+            buf: &mut tokio::io::ReadBuf<'_>,
+        ) -> Poll<io::Result<()>> {
+            let bytes_in_buffer_before = buf.filled().len();
             match self.as_mut().inner().poll_read(cx, buf) {
                 Poll::Pending => Poll::Pending,
                 Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
-                Poll::Ready(Ok(bytes_read)) => {
+                Poll::Ready(Ok(())) => {
+                    let bytes_read = buf.filled().len() - bytes_in_buffer_before;
                     self.update(bytes_read);
-                    Poll::Ready(Ok(bytes_read))
+                    Poll::Ready(Ok(()))
                 }
             }
         }
     }
 
+    /// Needed an error type for type annotation in constructing annoyting streams below
+    #[cfg(test)]
+    type SomeError = tokio::task::JoinError;
+
     #[test]
     fn works_with_tokios_async_read() {
         use bytes::Bytes;
-        use tokio::io::{stream_reader, AsyncReadExt};
+        use tokio::io::AsyncReadExt;
+        use tokio_util::io::StreamReader;
 
         let src = vec![1u8, 2, 3, 4, 5];
         let total_size = src.len();
-        let xs = tokio::stream::iter(vec![Ok(Bytes::from(src))]);
-        let reader = stream_reader(xs);
+        let data: Vec<Result<Bytes, SomeError>> = vec![Ok(Bytes::from(src))];
+        let reader = StreamReader::new(tokio_stream::iter(data));
         let mut buf = Vec::new();
 
         let mut reader = reader.report_progress(
@@ -257,13 +264,11 @@ mod for_tokio {
     async fn does_delays_and_stuff() {
         use bytes::Bytes;
         use std::sync::{Arc, RwLock};
-        use tokio::{
-            io::{stream_reader, AsyncReadExt},
-            sync::mpsc,
-            time::delay_for,
-        };
+        use tokio::{io::AsyncReadExt, sync::mpsc, time::sleep};
+        use tokio_util::io::StreamReader;
 
-        let (mut data_writer, data_reader) = mpsc::channel(1);
+        let (data_writer, data_reader): (_, mpsc::Receiver<Result<Bytes, SomeError>>) =
+            mpsc::channel(1);
 
         tokio::spawn(async move {
             for i in 0u8..10 {
@@ -272,13 +277,13 @@ mod for_tokio {
                     .send(Ok(Bytes::from_static(&[1u8, 2, 3, 4])))
                     .await
                     .unwrap();
-                delay_for(Duration::from_millis(10)).await;
+                sleep(Duration::from_millis(10)).await;
             }
             drop(data_writer);
         });
 
         let total_size = 4 * 10i32;
-        let reader = stream_reader(data_reader);
+        let reader = StreamReader::new(tokio_stream::wrappers::ReceiverStream::new(data_reader));
         let mut buf = Vec::new();
 
         let log = Arc::new(RwLock::new(Vec::new()));
@@ -320,13 +325,11 @@ mod for_tokio {
     async fn does_delays_and_stuff_real_good() {
         use bytes::Bytes;
         use std::sync::{Arc, RwLock};
-        use tokio::{
-            io::{stream_reader, AsyncReadExt},
-            sync::mpsc,
-            time::delay_for,
-        };
+        use tokio::{io::AsyncReadExt, sync::mpsc, time::sleep};
+        use tokio_util::io::StreamReader;
 
-        let (mut data_writer, data_reader) = mpsc::channel(1);
+        let (data_writer, data_reader): (_, mpsc::Receiver<Result<Bytes, SomeError>>) =
+            mpsc::channel(1);
 
         tokio::spawn(async move {
             for i in 0u8..10 {
@@ -335,13 +338,13 @@ mod for_tokio {
                     .send(Ok(Bytes::from_static(&[1u8, 2, 3, 4])))
                     .await
                     .unwrap();
-                delay_for(Duration::from_millis(5)).await;
+                sleep(Duration::from_millis(5)).await;
             }
             drop(data_writer);
         });
 
         let total_size = 4 * 10i32;
-        let reader = stream_reader(data_reader);
+        let reader = StreamReader::new(tokio_stream::wrappers::ReceiverStream::new(data_reader));
         let mut buf = Vec::new();
 
         let log = Arc::new(RwLock::new(Vec::new()));
